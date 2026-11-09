@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
 # Compact status line for Claude Code.
 # Reads the session JSON that Claude Code writes on stdin and prints one line:
-#   Opus 5.5 · high · git main · ctx ████░░░░░░ 42% 84k/200k · ~$1.23 · 5h ██░░░░░░░░ 18% resets 2h10 · 7d ████░░░░░░ 40%
+#   Opus 5.5 · high · git main · ctx ████░░░░░░ 42% 84k/200k · ~$1.23 · cache 4m · +120 -34 · up 25m
+#   · 5h ████████░░ 78% resets 1h40 full in ~45m · 7d ████░░░░░░ 40% resets 3d11h
 #
 # Settings (environment variables):
-#   CLAUDE_STATUSLINE_SEGMENTS   segments to show, in order
-#                                (default "model,effort,branch,context,cost,5h,7d")
-#   CLAUDE_STATUSLINE_WARN       percentage where a gauge turns yellow (default 50)
-#   CLAUDE_STATUSLINE_CRIT       percentage where a gauge turns red    (default 80)
-#   CLAUDE_STATUSLINE_SEP        separator between segments            (default " · ")
-#   CLAUDE_STATUSLINE_BAR_WIDTH  cells in each bar, 0 hides the bars  (default 10)
-#   NO_COLOR                     any value disables colors
+#   CLAUDE_STATUSLINE_SEGMENTS       segments to show, in order (default
+#                                    "model,effort,branch,context,cost,cache,lines,duration,5h,7d")
+#   CLAUDE_STATUSLINE_WARN           percentage where a gauge turns yellow (default 50)
+#   CLAUDE_STATUSLINE_CRIT           percentage where a gauge turns red    (default 80)
+#   CLAUDE_STATUSLINE_FORECAST_FROM  usage percentage from which 5h/7d warn when the
+#                                    current pace hits the limit before it resets;
+#                                    101 turns the forecast off             (default 70)
+#   CLAUDE_STATUSLINE_SEP            separator between segments            (default " · ")
+#   CLAUDE_STATUSLINE_BAR_WIDTH      cells in each bar, 0 hides the bars  (default 10)
+#   NO_COLOR                         any value disables colors
 #
 # `--segments LIST` on the command line overrides CLAUDE_STATUSLINE_SEGMENTS.
 
 set -u
 
-SEGMENTS=${CLAUDE_STATUSLINE_SEGMENTS:-model,effort,branch,context,cost,5h,7d}
+SEGMENTS=${CLAUDE_STATUSLINE_SEGMENTS:-model,effort,branch,context,cost,cache,lines,duration,5h,7d}
 while (( $# )); do
   case $1 in
     --segments) SEGMENTS=${2:-}; shift 2 || shift ;;
@@ -29,6 +33,8 @@ WARN=${CLAUDE_STATUSLINE_WARN:-50}
 CRIT=${CLAUDE_STATUSLINE_CRIT:-80}
 SEP=${CLAUDE_STATUSLINE_SEP:- · }
 BAR_WIDTH=${CLAUDE_STATUSLINE_BAR_WIDTH:-10}
+FORECAST_FROM=${CLAUDE_STATUSLINE_FORECAST_FROM:-70}
+NOW=${CLAUDE_STATUSLINE_NOW:-$(date +%s)}
 
 if [[ -n ${NO_COLOR:-} ]]; then
   RESET='' DIM='' BOLD='' GREEN='' YELLOW='' RED='' CYAN='' MAGENTA=''
@@ -52,6 +58,11 @@ input=$(cat)
   IFS= read -r week_pct
   IFS= read -r week_reset
   IFS= read -r cwd
+  IFS= read -r added
+  IFS= read -r removed
+  IFS= read -r duration_ms
+  IFS= read -r cache_warm
+  IFS= read -r cache_expires
 } < <(jq -r '
   def num: if type == "number" then . else null end;
   def rnd: if type == "number" then round else null end;
@@ -75,7 +86,12 @@ input=$(cat)
       (.rate_limits.five_hour.resets_at | flr),
       (.rate_limits.seven_day.used_percentage | rnd),
       (.rate_limits.seven_day.resets_at | flr),
-      (.workspace.current_dir // .cwd // "")
+      (.workspace.current_dir // .cwd // ""),
+      (.cost.total_lines_added | flr),
+      (.cost.total_lines_removed | flr),
+      (.cost.total_duration_ms | flr),
+      (.prompt_cache.warm | if type == "boolean" then . else null end),
+      (.prompt_cache.expires_at | flr)
     ]
   | map(if . == null then "" else tostring end)
   | .[]
@@ -112,11 +128,10 @@ progress_bar() {
   printf '%s%s%s' "$color" "$bar" "$RESET"
 }
 
-# Time left until an epoch timestamp: 2h10, 45m, 3d4h.
-until_reset() {
-  local left=$(( $1 - $(date +%s) ))
-  (( left <= 0 )) && return
-  local d=$(( left / 86400 )) h=$(( left % 86400 / 3600 )) m=$(( left % 3600 / 60 ))
+# A number of seconds as 3d4h, 2h10 or 45m.
+format_duration() {
+  local s=$1
+  local d=$(( s / 86400 )) h=$(( s % 86400 / 3600 )) m=$(( s % 3600 / 60 ))
   if (( d > 0 )); then printf '%dd%dh' "$d" "$h"
   elif (( h > 0 )); then printf '%dh%02d' "$h" "$m"
   else printf '%dm' "$m"
@@ -167,27 +182,61 @@ segment_cost() {
   [[ -n $cost ]] && printf '%s' "${DIM}~\$$(LC_NUMERIC=C printf '%.2f' "$cost")${RESET}"
 }
 
+segment_lines() {
+  [[ -n $added || -n $removed ]] || return
+  (( ${added:-0} + ${removed:-0} > 0 )) || return
+  printf '%s' "${GREEN}+${added:-0}${RESET} ${RED}-${removed:-0}${RESET}"
+}
+
+segment_duration() {
+  [[ -n $duration_ms ]] || return
+  printf '%s' "${DIM}up${RESET} $(format_duration $(( duration_ms / 1000 )))"
+}
+
+# While warm, the next message reads the conversation from the prompt cache;
+# once cold, it reprocesses the whole context.
+segment_cache() {
+  [[ -n $cache_warm ]] || return
+  local left=0
+  [[ -n $cache_expires ]] && left=$(( cache_expires - NOW ))
+  if [[ $cache_warm != true ]] || (( left <= 0 )); then
+    printf '%s' "${DIM}cache${RESET} ${YELLOW}cold${RESET}"
+  elif (( left < 60 )); then
+    printf '%s' "${DIM}cache${RESET} ${YELLOW}<1m${RESET}"
+  else
+    printf '%s' "${DIM}cache${RESET} ${GREEN}$(format_duration "$left")${RESET}"
+  fi
+}
+
+# The forecast assumes usage keeps the pace it had since the window opened:
+# elapsed = window - time left, so pct grew at pct/elapsed per second.
 limit_segment() {
-  local label=$1 pct=$2 reset=$3 seg left color
+  local label=$1 pct=$2 reset=$3 window=$4 seg color left elapsed to_full
   [[ -n $pct ]] || return
   color=$(gauge_color "$pct")
   seg="${DIM}${label}${RESET}"
   (( BAR_WIDTH > 0 )) && seg+=" $(progress_bar "$pct" "$color")"
   seg+=" ${color}${pct}%${RESET}"
-  if [[ -n $reset ]]; then
-    left=$(until_reset "$reset")
-    [[ -n $left ]] && seg+=" ${DIM}resets ${left}${RESET}"
+  [[ -n $reset ]] || { printf '%s' "$seg"; return; }
+  left=$(( reset - NOW ))
+  if (( left > 0 )); then
+    seg+=" ${DIM}resets $(format_duration "$left")${RESET}"
+    elapsed=$(( window - left ))
+    if (( pct >= FORECAST_FROM && pct > 0 && pct < 100 && elapsed > 0 )); then
+      to_full=$(( (100 - pct) * elapsed / pct ))
+      (( to_full < left )) && seg+=" ${RED}full in ~$(format_duration "$to_full")${RESET}"
+    fi
   fi
   printf '%s' "$seg"
 }
 
-segment_5h() { limit_segment 5h "$five_pct" "$five_reset"; }
-segment_7d() { limit_segment 7d "$week_pct" "$week_reset"; }
+segment_5h() { limit_segment 5h "$five_pct" "$five_reset" 18000; }
+segment_7d() { limit_segment 7d "$week_pct" "$week_reset" 604800; }
 
 out=''
 IFS=', ' read -r -a wanted <<<"$SEGMENTS"
 for name in "${wanted[@]}"; do
-  [[ $name =~ ^(model|effort|branch|context|cost|5h|7d)$ ]] || continue
+  [[ $name =~ ^(model|effort|branch|context|cost|cache|lines|duration|5h|7d)$ ]] || continue
   s=$("segment_$name")
   [[ -n $s ]] || continue
   [[ -n $out ]] && out+="${DIM}${SEP}${RESET}"

@@ -31,7 +31,7 @@ check "full session" "$(cat <<EOF
  "rate_limits":{"five_hour":{"used_percentage":83.4,"resets_at":$((now + 7830))},
                 "seven_day":{"used_percentage":55,"resets_at":$((now + 300030))}}}
 EOF
-)" "Opus 5.5 · high · ctx ████░░░░░░ 42% 84k/200k · ~\$1.23 · 5h ████████░░ 83% resets 2h10 · 7d ██████░░░░ 55% resets 3d11h"
+)" "Opus 5.5 · high · ctx ████░░░░░░ 42% 84k/200k · ~\$1.23 · 5h ████████░░ 83% resets 2h10 full in ~34m · 7d ██████░░░░ 55% resets 3d11h"
 
 check "percentage derived from tokens" \
   '{"model":{"display_name":"Sonnet 5.5"},"context_window":{"context_window_size":1000000,"current_usage":{"input_tokens":250000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}' \
@@ -82,6 +82,40 @@ check "no branch outside a git repository" \
 
 CLAUDE_STATUSLINE_BAR_WIDTH=0 \
   check "bar width 0 hides every bar" "$session" "ctx 90% · 7d 12%" --segments context,7d
+
+export CLAUDE_STATUSLINE_NOW=1800000000 CLAUDE_STATUSLINE_BAR_WIDTH=0
+five_hour() { echo "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":$1,\"resets_at\":$((CLAUDE_STATUSLINE_NOW + $2))}}}"; }
+
+check "forecast when the pace hits the limit before reset" \
+  "$(five_hour 75 6000)" "5h 75% resets 1h40 full in ~1h06" --segments 5h
+
+check "no forecast below the threshold" "$(five_hour 65 6000)" "5h 65% resets 1h40" --segments 5h
+
+check "no forecast when the reset comes first" "$(five_hour 75 600)" "5h 75% resets 10m" --segments 5h
+
+CLAUDE_STATUSLINE_FORECAST_FROM=50 \
+  check "forecast threshold is configurable" \
+  "$(five_hour 60 9000)" "5h 60% resets 2h30 full in ~1h40" --segments 5h
+
+CLAUDE_STATUSLINE_FORECAST_FROM=101 \
+  check "forecast threshold 101 turns it off" "$(five_hour 75 6000)" "5h 75% resets 1h40" --segments 5h
+
+cache() { echo "{\"prompt_cache\":{\"warm\":$1,\"expires_at\":$((CLAUDE_STATUSLINE_NOW + $2))}}"; }
+
+check "warm cache shows time left" "$(cache true 250)" "cache 4m" --segments cache
+check "cache under a minute" "$(cache true 30)" "cache <1m" --segments cache
+check "cache past expiry is cold" "$(cache true -10)" "cache cold" --segments cache
+check "cache reported cold" "$(cache false 250)" "cache cold" --segments cache
+check "no cache segment before the first request" '{"model":{"display_name":"Opus 5.5"}}' \
+  "Opus 5.5" --segments model,cache
+
+check "lines and duration" \
+  '{"cost":{"total_lines_added":120,"total_lines_removed":34,"total_duration_ms":3900000}}' \
+  "+120 -34 · up 1h05" --segments lines,duration
+
+check "no lines segment when nothing changed" \
+  '{"cost":{"total_lines_added":0,"total_lines_removed":0,"total_duration_ms":1500000}}' \
+  "up 25m" --segments lines,duration
 
 if (( failures > 0 )); then
   echo "$failures failing"
