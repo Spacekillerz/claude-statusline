@@ -13,11 +13,11 @@ ALL_SEGMENTS=(model effort branch context cost 5h 7d)
 declare -A DESCRIPTIONS=(
   [model]="model name               Opus 5.5"
   [effort]="reasoning effort         high"
-  [branch]="git branch               ⎇ main"
+  [branch]="git branch               git main"
   [context]="context window           ctx ████░░░░░░ 42% 84k/200k"
   [cost]="session cost (API price) ~\$1.23"
-  [5h]="5-hour plan limit        5h ████████░░ 83% ↻2h10"
-  [7d]="weekly plan limit        7d ██████░░░░ 55% ↻3d11h"
+  [5h]="5-hour plan limit        5h ████████░░ 83% resets 2h10"
+  [7d]="weekly plan limit        7d ██████░░░░ 55% resets 3d11h"
 )
 
 usage() { sed -n '2,8s/^# \{0,1\}//p' "$0"; }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compact status line for Claude Code.
 # Reads the session JSON that Claude Code writes on stdin and prints one line:
-#   Opus 5.5 · high · ⎇ main · ctx ████░░░░░░ 42% 84k/200k · ~$1.23 · 5h ██░░░░░░░░ 18% ↻2h10 · 7d ████░░░░░░ 40%
+#   Opus 5.5 · high · git main · ctx ████░░░░░░ 42% 84k/200k · ~$1.23 · 5h ██░░░░░░░░ 18% resets 2h10 · 7d ████░░░░░░ 40%
 #
 # Settings (environment variables):
 #   CLAUDE_STATUSLINE_SEGMENTS   segments to show, in order
@@ -146,7 +146,7 @@ segment_branch() {
   branch=$(git --no-optional-locks -C "$cwd" symbolic-ref --quiet --short HEAD 2>/dev/null) \
     || branch=$(git --no-optional-locks -C "$cwd" rev-parse --short HEAD 2>/dev/null) \
     || return
-  printf '%s' "${DIM}⎇${RESET} ${MAGENTA}${branch}${RESET}"
+  printf '%s' "${DIM}git${RESET} ${MAGENTA}${branch}${RESET}"
 }
 
 segment_context() {
@@ -176,7 +176,7 @@ limit_segment() {
   seg+=" ${color}${pct}%${RESET}"
   if [[ -n $reset ]]; then
     left=$(until_reset "$reset")
-    [[ -n $left ]] && seg+=" ${DIM}↻${left}${RESET}"
+    [[ -n $left ]] && seg+=" ${DIM}resets ${left}${RESET}"
   fi
   printf '%s' "$seg"
 }

@@ -3,19 +3,23 @@
 A compact, colored status line for [Claude Code](https://code.claude.com/docs/en/overview)
 that shows what `/usage` tells you without typing it:
 
+![The status line under the Claude Code prompt](docs/screenshot.png)
+
+With every segment on:
+
 ```
-Opus 5.5 · high · ⎇ main · ctx ████░░░░░░ 42% 84k/200k · ~$1.23 · 5h ████████░░ 83% ↻2h10 · 7d ██████░░░░ 55% ↻3d11h
+Opus 5.5 · high · git main · ctx ████░░░░░░ 42% 84k/200k · ~$1.23 · 5h ████████░░ 83% resets 2h10 · 7d ██████░░░░ 55% resets 3d11h
 ```
 
-| Name      | Looks like                    | Meaning                                                         |
-|-----------|-------------------------------|-----------------------------------------------------------------|
-| `model`   | `Opus 5.5`                    | current model                                                   |
-| `effort`  | `high`                        | reasoning effort (only for models that support it)              |
-| `branch`  | `⎇ main`                      | git branch of the session's directory, or commit if detached    |
-| `context` | `ctx ████░░░░░░ 42% 84k/200k` | context window used: bar, percentage, tokens used / window size |
-| `cost`    | `~$1.23`                      | session cost at API prices (see below)                          |
-| `5h`      | `5h ████████░░ 83% ↻2h10`     | 5-hour usage limit consumed: bar, percentage, time until reset  |
-| `7d`      | `7d ██████░░░░ 55% ↻3d11h`    | weekly usage limit consumed: bar, percentage, time until reset  |
+| Name      | Looks like                         | Meaning                                                         |
+|-----------|------------------------------------|-----------------------------------------------------------------|
+| `model`   | `Opus 5.5`                         | current model                                                   |
+| `effort`  | `high`                             | reasoning effort (only for models that support it)              |
+| `branch`  | `git main`                         | git branch of the session's directory, or commit if detached    |
+| `context` | `ctx ████░░░░░░ 42% 84k/200k`      | context window used: bar, percentage, tokens used / window size |
+| `cost`    | `~$1.23`                           | session cost at API prices (see below)                          |
+| `5h`      | `5h ████████░░ 83% resets 2h10`    | 5-hour usage limit consumed: bar, percentage, time until reset  |
+| `7d`      | `7d ██████░░░░ 55% resets 3d11h`   | weekly usage limit consumed: bar, percentage, time until reset  |
 
 Percentages are green below 50 %, yellow from 50 %, red from 80 %.
 A segment is hidden when Claude Code does not provide its value, for example

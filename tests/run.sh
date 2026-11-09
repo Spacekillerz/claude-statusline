@@ -31,7 +31,7 @@ check "full session" "$(cat <<EOF
  "rate_limits":{"five_hour":{"used_percentage":83.4,"resets_at":$((now + 7830))},
                 "seven_day":{"used_percentage":55,"resets_at":$((now + 300030))}}}
 EOF
-)" "Opus 5.5 · high · ctx ████░░░░░░ 42% 84k/200k · ~\$1.23 · 5h ████████░░ 83% ↻2h10 · 7d ██████░░░░ 55% ↻3d11h"
+)" "Opus 5.5 · high · ctx ████░░░░░░ 42% 84k/200k · ~\$1.23 · 5h ████████░░ 83% resets 2h10 · 7d ██████░░░░ 55% resets 3d11h"
 
 check "percentage derived from tokens" \
   '{"model":{"display_name":"Sonnet 5.5"},"context_window":{"context_window_size":1000000,"current_usage":{"input_tokens":250000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}' \
@@ -70,12 +70,12 @@ mkdir "$repo/sub"
 
 check "branch of the session directory" \
   "{\"model\":{\"display_name\":\"Opus 5.5\"},\"workspace\":{\"current_dir\":\"$repo/sub\"}}" \
-  "Opus 5.5 · ⎇ feature/demo"
+  "Opus 5.5 · git feature/demo"
 
 git -C "$repo" checkout -q --detach
 check "detached HEAD shows the short commit" \
   "{\"workspace\":{\"current_dir\":\"$repo\"}}" \
-  "⎇ $(git -C "$repo" rev-parse --short HEAD)" --segments branch
+  "git $(git -C "$repo" rev-parse --short HEAD)" --segments branch
 
 check "no branch outside a git repository" \
   '{"model":{"display_name":"Opus 5.5"},"workspace":{"current_dir":"/"}}' "Opus 5.5"
