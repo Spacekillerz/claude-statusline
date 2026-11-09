@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compact status line for Claude Code.
 # Reads the session JSON that Claude Code writes on stdin and prints one line:
-#   Opus 5.5 · high · ⎇ main · ctx ████░░░░░░ 42% 84k/200k · ~$1.23 · 5h 18% ↻2h10 · 7d 40%
+#   Opus 5.5 · high · ⎇ main · ctx ████░░░░░░ 42% 84k/200k · ~$1.23 · 5h ██░░░░░░░░ 18% ↻2h10 · 7d ████░░░░░░ 40%
 #
 # Settings (environment variables):
 #   CLAUDE_STATUSLINE_SEGMENTS   segments to show, in order
@@ -9,7 +9,7 @@
 #   CLAUDE_STATUSLINE_WARN       percentage where a gauge turns yellow (default 50)
 #   CLAUDE_STATUSLINE_CRIT       percentage where a gauge turns red    (default 80)
 #   CLAUDE_STATUSLINE_SEP        separator between segments            (default " · ")
-#   CLAUDE_STATUSLINE_BAR_WIDTH  cells in the context bar, 0 hides it  (default 10)
+#   CLAUDE_STATUSLINE_BAR_WIDTH  cells in each bar, 0 hides the bars  (default 10)
 #   NO_COLOR                     any value disables colors
 #
 # `--segments LIST` on the command line overrides CLAUDE_STATUSLINE_SEGMENTS.
@@ -168,9 +168,12 @@ segment_cost() {
 }
 
 limit_segment() {
-  local label=$1 pct=$2 reset=$3 seg left
+  local label=$1 pct=$2 reset=$3 seg left color
   [[ -n $pct ]] || return
-  seg="${DIM}${label}${RESET} $(gauge_color "$pct")${pct}%${RESET}"
+  color=$(gauge_color "$pct")
+  seg="${DIM}${label}${RESET}"
+  (( BAR_WIDTH > 0 )) && seg+=" $(progress_bar "$pct" "$color")"
+  seg+=" ${color}${pct}%${RESET}"
   if [[ -n $reset ]]; then
     left=$(until_reset "$reset")
     [[ -n $left ]] && seg+=" ${DIM}↻${left}${RESET}"

@@ -16,8 +16,8 @@ declare -A DESCRIPTIONS=(
   [branch]="git branch               ⎇ main"
   [context]="context window           ctx ████░░░░░░ 42% 84k/200k"
   [cost]="session cost (API price) ~\$1.23"
-  [5h]="5-hour plan limit        5h 83% ↻2h10"
-  [7d]="weekly plan limit        7d 55% ↻3d11h"
+  [5h]="5-hour plan limit        5h ████████░░ 83% ↻2h10"
+  [7d]="weekly plan limit        7d ██████░░░░ 55% ↻3d11h"
 )
 
 usage() { sed -n '2,8s/^# \{0,1\}//p' "$0"; }

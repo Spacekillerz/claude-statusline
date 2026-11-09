@@ -31,7 +31,7 @@ check "full session" "$(cat <<EOF
  "rate_limits":{"five_hour":{"used_percentage":83.4,"resets_at":$((now + 7830))},
                 "seven_day":{"used_percentage":55,"resets_at":$((now + 300030))}}}
 EOF
-)" "Opus 5.5 · high · ctx ████░░░░░░ 42% 84k/200k · ~\$1.23 · 5h 83% ↻2h10 · 7d 55% ↻3d11h"
+)" "Opus 5.5 · high · ctx ████░░░░░░ 42% 84k/200k · ~\$1.23 · 5h ████████░░ 83% ↻2h10 · 7d ██████░░░░ 55% ↻3d11h"
 
 check "percentage derived from tokens" \
   '{"model":{"display_name":"Sonnet 5.5"},"context_window":{"context_window_size":1000000,"current_usage":{"input_tokens":250000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}' \
@@ -43,7 +43,7 @@ check "no rate limits, no effort" \
 
 check "expired reset hides countdown" \
   "{\"model\":{\"display_name\":\"Opus 5.5\"},\"rate_limits\":{\"five_hour\":{\"used_percentage\":10,\"resets_at\":$((now - 60))}}}" \
-  "Opus 5.5 · 5h 10%"
+  "Opus 5.5 · 5h █░░░░░░░░░ 10%"
 
 check "invalid input prints an empty line" 'not json' ""
 
@@ -54,7 +54,7 @@ check "--segments picks and orders segments" "$session" \
 
 check "--segments= form" "$session" "ctx █████████░ 90%" --segments=context
 
-check "unknown segment names are ignored" "$session" "Opus 5.5 · 7d 12%" --segments model,weekly,7d
+check "unknown segment names are ignored" "$session" "Opus 5.5 · 7d █░░░░░░░░░ 12%" --segments model,weekly,7d
 
 check "a chosen segment without data is skipped" \
   '{"model":{"display_name":"Opus 5.5"}}' "Opus 5.5" --segments 5h,model
@@ -81,7 +81,7 @@ check "no branch outside a git repository" \
   '{"model":{"display_name":"Opus 5.5"},"workspace":{"current_dir":"/"}}' "Opus 5.5"
 
 CLAUDE_STATUSLINE_BAR_WIDTH=0 \
-  check "bar width 0 hides the bar" "$session" "ctx 90%" --segments context
+  check "bar width 0 hides every bar" "$session" "ctx 90% · 7d 12%" --segments context,7d
 
 if (( failures > 0 )); then
   echo "$failures failing"
