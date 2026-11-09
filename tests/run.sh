@@ -2,7 +2,7 @@
 # Feeds sample session JSON to statusline.sh and checks the printed line.
 set -u
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 export NO_COLOR=1
 now=$(date +%s)
 failures=0
@@ -83,4 +83,8 @@ check "no branch outside a git repository" \
 CLAUDE_STATUSLINE_BAR_WIDTH=0 \
   check "bar width 0 hides the bar" "$session" "ctx 90%" --segments context
 
-(( failures == 0 )) && echo "all tests passed" || { echo "$failures failing"; exit 1; }
+if (( failures > 0 )); then
+  echo "$failures failing"
+  exit 1
+fi
+echo "all tests passed"
